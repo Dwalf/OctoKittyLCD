@@ -1,0 +1,197 @@
+#!/bin/bash
+#############################################################
+# PUT TOGETHER BY DWALF - 02OCT2021
+# UPDATED - 11SEP2021
+# WARNING NOTE: THIS IS NOT A PLUGIN - DO NOT USE IT AS A OCTOPRINT PLUGIN
+#
+# NAME OCTOKITTYLCD BUTTON INFO
+# VERSION 1.0 - NOT FOR COMMERCAIL USE - PERSONAL USE ONLY
+# WITHOUT WARRNETY OR SUPPORT
+# USE AT OWN RISK AND LIABILITY
+#
+# THANKS EVERYONE - ONLY ONE HOTEND tool0 SUPPORTED
+# WORKS WITH OCTOPRINT 1.6 and PY3
+# TIP ME AT https://www.thingiverse.com/dwalf/designs
+#
+# REQUIRED ALL FILES IN '/home/pi' FOLDER
+# THIS FILE 'octokittyinfo'
+# YOU NEED TO MAKE THIS FILE EXECUTABLE 'sudo chmod +x octokittyinfo'
+#
+# RESOURCES USED
+# https://learn.sparkfun.com/tutorials/raspberry-gpio/gpio-pinout
+# https://github.com/LuxuSam/PhysicalButton/tree/master
+#############################################################
+
+#####################################
+# OCTOPRINT API KEY
+# ENTER YOUR KEY FROM OCTOPRINT HERE
+#####################################
+apikey='XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX' # <-----------------------------ENTER YOUR API HERE-----------------
+
+##################################
+# OCTOPRINT LOCAL IP OR HOST NAME
+##################################
+OCTOPI_HOST_STRING='localhost'
+
+mess0='0' # SELECT SCREEN TO PRINT
+mess1='0' # SCREEN DATA
+mess2='0' # SCREEN DATA
+mess3='0' # SCREEN DATA
+mess4='0' # SCREEN DATA
+num2='0'  # DATE STRING
+num3='0'  # TIME STRING
+num4='0'  # IP STRING
+
+################################
+# GET THE IP ADDRESS WHEN VALID
+################################
+your_command_string="hostname -I"
+mess2=$(eval "$your_command_string")
+# WE WILL USE THIS VAR LATER FOR DISPLAYING IP DURING PRINTING
+num4=$mess2
+
+###########################################
+# JSON PAYLOAD STRINGS
+# THIS IS THE JSON AREA WE FIND DATA
+###########################################
+# https://docs.octoprint.org/en/master/api/printerprofiles.html
+
+JQ_STATUS_PATH11='.job.file.name' #Printing File Name
+JQ_STATUS_PATH13='.progress.printTime' #Printing Time Spent Seconds
+JQ_STATUS_PATH14='.progress.printTimeLeft' #Printing Time Left Seconds
+JQ_STATUS_PATH16='.profiles._default.name' #Profile name
+JQ_STATUS_PATH17='.job.filament.tool0.length' #Filament Lenth Printed
+
+###########################################
+# API CONNECTION STRING
+# THIS IS THE URL GET DATA
+###########################################
+JQ_KEY2='job'
+JQ_KEY3='printerprofiles'
+
+########################################
+# OCTOPRINT CONNECTION STRING WITH CURL
+########################################
+
+CURL_OUT_RAW2=$(/usr/bin/curl --insecure -L --silent --header 'Content-Typplication/json' \
+--header "X-Api-Key: $apikey" http://$OCTOPI_HOST_STRING/api/$JQ_KEY2)
+
+CURL_OUT_RAW3=$(/usr/bin/curl --insecure -L --silent --header 'Content-Typplication/json' \
+--header "X-Api-Key: $apikey" http://$OCTOPI_HOST_STRING/api/$JQ_KEY3)
+
+###########################################
+# CHECK THE PRINTER PRINTING STATUS LOOPED
+###########################################
+showstat5='' # Filename Printing
+showstat6='' # Estate Time Remaining
+showstat7='' # Job Status Printing
+showstat8='' # Profile Name
+showstat9='' # Filament Used
+
+######################################
+# COLLECT INFO DATA
+#####################################
+
+# FILE NAME BEEN PRINTED
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | /usr/bin/jq -r $JQ_STATUS_PATH11)
+#echo "\FILENAME: $JQ_RESULT2"
+if [[ $JQ_RESULT2 == "null" ]] || [[ $JQ_RESULT2 == "" ]]; then
+showstat5=''
+else
+showstat5=$( echo $JQ_RESULT2)
+fi
+
+# PRINT TIME LEFT IN SECONS
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | /usr/bin/jq -r $JQ_STATUS_PATH14)
+#echo "\TIME LEFT MIN: $JQ_RESULT2"
+if [[ $JQ_RESULT2 == "null" ]] || [[ $JQ_RESULT2 == "" ]]; then
+showstat6='0'
+else
+showstat6=$(($JQ_RESULT2/60))
+fi
+
+# FILAMENT USED IN MM
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | /usr/bin/jq -r $JQ_STATUS_PATH17)
+#echo "Variable X is unset or null"
+if [[ $JQ_RESULT2 == "null" ]] || [[ $JQ_RESULT2 == "" ]]; then
+showstat9='0'
+else
+showstat9=$( printf "%.1f\n" $JQ_RESULT2)
+fi
+
+# GET THE PRINTER PROFILE NAME
+JQ_RESULT3=$( echo $CURL_OUT_RAW3 | /usr/bin/jq -r $JQ_STATUS_PATH16)
+#echo "\PROFILENAME: $JQ_RESULT3"
+if [[ $JQ_RESULT3 == "null" ]] || [[ $JQ_RESULT3 == "" ]]; then
+showstat8='0'
+else
+showstat8=$( echo $JQ_RESULT3)
+fi
+
+###################################################################################
+# START SENDING INFO TO SCREED
+###################################################################################
+mess0='1'
+mess1='***INFORMATION***'
+mess2='*****SCREEN*****'
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 2
+# Extra Info 1 FILE PRINTED NAME
+mess0='9'
+mess1='FILE_NAME'
+mess2=$showstat5
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+#sleep 2
+# Extra Info 2 DATE AND TIME
+# GET THE DATE AND TIME
+num2=$(date +%Y-%m-%d)
+num3=$(date +%H:%M:%S)
+mess0='1'
+mess1=$num2
+mess2=$num3
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 2
+# Extra Info 3 IP ADDRESS
+mess0='1'
+mess1='IP_ADDRESS'
+mess2=$num4
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 2
+# Extra Info 4 ESTIMATED TIME TO FINISH
+mess0='1'
+mess1='TIME_LEFT_MIN'
+mess2=$showstat6
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 2
+# Extra Info 5 PROFILE NAME
+mess0='9'
+mess1='PROFILE_NAME'
+mess2=$showstat8
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+#sleep 1
+# Extra Info 5 FILAMENT USED IN MM
+mess0='1'
+mess1='FILAMENT_USED_MM'
+mess2=$showstat9
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 1
+
+#############################################
+# CLEAN THE LCD
+#############################################
+mess0='3'
+mess1=''
+mess2=""
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+
+#########################
+# FINISHED END OF FILE
+#########################

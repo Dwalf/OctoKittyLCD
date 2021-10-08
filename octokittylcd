@@ -1,0 +1,597 @@
+#!/bin/bash
+#############################################################
+# PUT TOGETHER BY DWALF - 02OCT2021
+# WARNING NOTE: THIS IS NOT A PLUGIN - DO NOT USE IT AS A OCTOPRINT PLUGIN
+#
+# NAME OCTOKITTY_LCD I2C 16x2 LCD DISPLAY
+# VERSION 1.3 - NOT FOR COMMERCAIL USE - PERSONAL USE ONLY
+# WITHOUT WARRNETY OR SUPPORT
+# USE AT OWN RISK AND LIABILITY
+#
+# THANKS EVERYONE - ONLY ONE HOTEND tool0 SUPPORTED
+# WORKS WITH OCTOPRINT 1.6 and PY3
+# TIP ME AT https://www.thingiverse.com/dwalf/designs
+#
+# REQUIRED ALL FILES IN '/home/pi' FOLDER
+# THIS FILE 'octokittylcd' RUN FROM 'sudo nano /etc/rc.local' AND MAKE EXECUTABLE 'CHMOD +x octokittylcd
+# Or run from crontab 'sudo cronttab -u root -e' choose Nano '@reboot /home/pi/octokittylcd'
+# LCD DRIVER FILE 'I2C_LCD_driver.py'
+# LCD DISPLAY FILE 'octolcd16x2.py'
+# TO MAKE RUN AT BOOT 'sudo nano /etc/rc.local' AND PLACE LINE BEFORE EOF EXIT '/home/pi/octokittylcd''
+# SEE README FILE
+#
+# RESOURCES USED
+# https://community.octoprint.org/t/is-there-a-reliable-way-to-determine-if-a-print-job-is-in-progress/15363/5
+# https://docs.octoprint.org/en/master/api/job.html#retrieve-information-about-the-current-job
+#############################################################
+
+#####################################
+# OCTOPRINT API KEY
+# ENTER YOUR KEY FROM OCTOPRINT HERE
+#####################################
+apikey='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' # <-----------------------------ENTER YOUR API HERE-----------------
+
+##################################
+# OCTOPRINT LOCAL IP OR HOST NAME
+##################################
+OCTOPI_HOST_STRING='localhost'
+
+mess0='0' # SELECT SCREEN TO PRINT
+mess1='0' # SCREEN DATA
+mess2='0' # SCREEN DATA
+mess3='0' # SCREEN DATA
+mess4='0' # SCREEN DATA
+num1='0'  # LOOP COUNTER TO WAIT FOR VALID IP
+num2='0'  # DATE STRING
+num3='0'  # TIME STRING
+num4='0'  # IP STRING
+num10='0' # LOOP COUNTER BEFORE EXTRA INFO SCREEN
+num11='0'   # LOOP COUNTER BEFORE SCREEN SAVER
+
+alarmE1='270' # HOTEND HEAT MAX       <--------------------------AJUST HEAT FAIL ALARM ---------------
+alarmE2='50' # HOTEND HEAT lOW
+alarmE3='80' # HOTBED HEAT MAX
+alarmE4='0' # HOTBED HEAT LOW         <----------------------------SET TO ZERO FOR NO HOTBED ---------
+
+#####################################
+# SCREEN PC BOOT MESSAGE
+#####################################
+clear
+echo '|====================================='
+echo "| System Booting.......               "
+echo "| $(date +%Y-%m-%d)                   "
+echo "| $(date +%H:%M:%S)                   "
+echo '|====================================='
+
+#################################
+# BOOTUP MESSAGE AND DATE MEOW!
+#################################
+mess0='1'
+mess1='OCTOKITTY_LCD'
+mess2='Version_1.3'
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 2
+# MEOW 1
+mess0='6'
+mess1='O'
+mess2='O'
+mess3='------'
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 1
+# MEOW 2
+mess0='6'
+mess1='O'
+mess2='-'
+mess3='------'
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 1
+
+################################
+# GET THE IP ADDRESS WHEN VALID
+################################
+mess0='1'
+mess1='NETWORK_IP'
+while [ "$(hostname -I)" = "" ]; do
+mess2='Error'
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 3
+done
+# IF DATA FOUND CONTINUE
+your_command_string="hostname -I"
+mess2=$(eval "$your_command_string")
+# WE WILL USE THIS VAR LATER FOR DISPLAYING IP DURING PRINTING
+num4=$mess2
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 2
+
+#####################################
+# SCREEN PC START MESSAGE
+#####################################
+clear
+echo '|====================================='
+echo "| OctoKitty_LCD Ver1.3                "
+echo '|                                     '
+echo "| IP_ADDESS: $num4                    "
+echo '|====================================='
+
+###########################################
+# JSON PAYLOAD STRINGS
+# THIS IS THE JSON AREA WE FIND DATA
+###########################################
+# https://docs.octoprint.org/en/master/api/printerprofiles.html
+JQ_STATUS_PATH0='.error'
+JQ_STATUS_PATH1='.state.flags.printing'
+JQ_STATUS_PATH2='.state.flags.operational'
+JQ_STATUS_PATH3='.state.flags.paused'
+JQ_STATUS_PATH4='.state.flags.closedOrError'
+JQ_STATUS_PATH5='.state.flags.cancelling'
+JQ_STATUS_PATH6='.state.flags.pausing'
+JQ_STATUS_PATH7='.state.flags.sdready'
+JQ_STATUS_PATH8='.state.flags.error'
+JQ_STATUS_PATH9='.temperature.tool0.actual' #Hotend Temp 1
+JQ_STATUS_PATH10='.temperature.bed.actual' #Bed Temp 1
+JQ_STATUS_PATH16='.state.flags.finishing' #Finishing
+
+JQ_STATUS_PATH11='.job.file.name' #Printing File Name
+JQ_STATUS_PATH12='.progress.completion' #Printing Percent %
+JQ_STATUS_PATH13='.progress.printTime' #Printing Time Spent Seconds
+JQ_STATUS_PATH14='.progress.printTimeLeft' #Printing Time Left Seconds
+JQ_STATUS_PATH15='.state' #Printing Status
+JQ_STATUS_PATH16='.profiles._default.name' #Profile name
+JQ_STATUS_PATH17='.job.filament.tool0.length' #Filament Lenth Printed
+
+###########################################
+# API CONNECTION STRING
+# THIS IS THE URL GET DATA
+###########################################
+JQ_KEY1='printer'
+JQ_KEY2='job'
+JQ_KEY3='printerprofiles'
+
+######################
+# START ENDLESS LOOP
+######################
+while :
+do
+
+#####################################
+# CHECK IF THE BUTTON APP IS RUNNING
+#####################################
+for pid in $(pidof -x octokittyinfo); do
+    if [ $pid != $$ ]; then
+sleep 1
+    fi
+done
+
+########################################
+# OCTOPRINT CONNECTION STRING WITH CURL
+########################################
+CURL_OUT_RAW1=$(/usr/bin/curl --insecure -L --silent --header 'Content-Typplication/json' \
+--header "X-Api-Key: $apikey" http://$OCTOPI_HOST_STRING/api/$JQ_KEY1)
+
+CURL_OUT_RAW2=$(/usr/bin/curl --insecure -L --silent --header 'Content-Typplication/json' \
+--header "X-Api-Key: $apikey" http://$OCTOPI_HOST_STRING/api/$JQ_KEY2)
+
+########################
+# SHOW DATA IN CONSOLE
+########################
+#echo "\$CURL_OUT_RAW1: $CURL_OUT_RAW1"
+#echo "\$CURL_OUT_RAW2: $CURL_OUT_RAW2"
+
+#########################################
+# CHECK IF THE PRINTER IF RETURNING JSON
+# SHOWS IF THE PRINTER IS CONNECTED
+#########################################
+STATUS_NOT_OPERATIONAL='Printer is not operational'
+while [ "$CURL_OUT_RAW1" == "$STATUS_NOT_OPERATIONAL" ]; do
+mess0='2'
+mess1='--PRINTER_NOT--'
+mess2='---CONNECTED---'
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 1
+done
+
+######################################
+# CHECK THE API KEY IS WORKING
+######################################
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | /usr/bin/jq -r $JQ_STATUS_PATH0)
+while [ "$JQ_RESULT1" == "You don't have the permission to access the requested resource. It is either read-protected or not readable by the server." ]; do
+mess0='2'
+mess1='----API-KEY----'
+mess2='-----ERROR-----'
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 1
+done
+
+######################################
+# CHECK FOR NO DATA SLOW SERVER
+######################################
+while [ "$JQ_RESULT1" == "" ]; do
+CURL_OUT_RAW1=$(/usr/bin/curl --insecure -L --silent --header 'Content-Typplication/json' \
+--header "X-Api-Key: $apikey" http://$OCTOPI_HOST_STRING/api/$JQ_KEY1)
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | /usr/bin/jq -r $JQ_STATUS_PATH0)
+mess0='1'
+mess1='CONNECTING'
+mess2='PLEASE_WAIT'
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 3
+done
+
+###########################################
+# CHECK THE PRINTER PRINTING STATUS LOOPED
+###########################################
+showstat1='READY' # Printing Status
+showstat2='' # Printer HotEnd Degrees
+showstat3='' # Printer HotBed Degrees
+showstat4='' # Percent Printed %
+showstat5='' # Filename Printing
+showstat6='' # Estate Time Remaining
+showstat7='' # Job Status Printing
+showstat8='' # Profile Name
+showstat9='' # Filament Used mm
+
+# OPERATIONAL
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | /usr/bin/jq -r $JQ_STATUS_PATH2)
+if [[ "$JQ_RESULT1" == "false" ]]; then
+#echo "\PRINTING: $JQ_RESULT1"
+showstat1='WAIT4SERVER'
+fi
+
+# FINISHING
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | /usr/bin/jq -r $JQ_STATUS_PATH16)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\PRINTING: $JQ_RESULT1"
+showstat1='FINISHING'
+fi
+
+# PRINTING
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | /usr/bin/jq -r $JQ_STATUS_PATH1)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\PRINTING: $JQ_RESULT1"
+showstat1='PRINTING'
+fi
+
+# PAUSED
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | /usr/bin/jq -r $JQ_STATUS_PATH3)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\PAUSED: $JQ_RESULT1"
+showstat1='PAUSED'
+fi
+
+# PAUSING
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | /usr/bin/jq -r $JQ_STATUS_PATH6)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\PAUSING: $JQ_RESULT1"
+showstat1='PAUSING'
+fi
+
+# CANCELED
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | /usr/bin/jq -r $JQ_STATUS_PATH5)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\CANCLING: $JQ_RESULT1"
+showstat1='CANCEL'
+fi
+
+# ERROR
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | /usr/bin/jq -r $JQ_STATUS_PATH8)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\ERROR: $JQ_RESULT1"
+showstat1='ERROR'
+fi
+
+# HOTEND
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | /usr/bin/jq -r $JQ_STATUS_PATH9)
+#echo "\HOTEND: $JQ_RESULT1"
+if [ $JQ_RESULT1 == "null" ]; then
+showstat2='0'
+else
+showstat2=$( printf "%.1f\n" $JQ_RESULT1)
+fi
+if [[ $showstat2 == "" ]]; then
+showstat2='0'
+fi
+
+# HOTBED
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | /usr/bin/jq -r $JQ_STATUS_PATH10)
+#echo "\HOTBED: $JQ_RESULT1"
+if [ $JQ_RESULT1 == "null" ]; then
+showstat3='0'
+else
+showstat3=$( printf "%.1f\n" $JQ_RESULT1)
+fi
+if [[ $showstat3 == "" ]]; then
+showstat3='0'
+fi
+
+# PERCENT PRINTED
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | /usr/bin/jq -r $JQ_STATUS_PATH12)
+#echo "\PERCENT: $JQ_RESULT2"
+if [ $JQ_RESULT2 == "null" ]; then
+showstat4='0'
+else
+showstat4=$( printf "%.1f\n" $JQ_RESULT2)
+fi
+if [[ $showstat4 == "" ]]; then
+showstat4='0'
+fi
+
+## PRINTING OFFLINE STATUS ERRORS
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | /usr/bin/jq -r $JQ_STATUS_PATH15)
+#echo "\JOB PRINTING STATUS2: $JQ_RESULT2"
+showstat7=$JQ_RESULT2
+if [[ $showstat7 == "Offline" ]]; then
+showstat1='OFFLINE'
+fi
+if [[ $showstat7 == "Offline after error" ]]; then
+showstat1='ERRORS'
+fi
+
+#######################
+# ROUND HEAT SETTINGS #
+#######################
+heatval2=$( printf  $showstat2 | awk '{print int($1+0.5)}')
+heatval3=$( printf  $showstat3 | awk '{print int($1+0.5)}')
+#echo "$heatval2"
+#echo "$heatval3"
+
+##############################################
+## SCREEN SAVER TURN OFF LED WHEN IDLE for X
+## THE HIGHER THE NUMBER THE LONGER IT TAKES
+## SCREENSAVER IS ON
+##############################################
+screensaveron=1                      # <--------------- TURN SCREENSAVER ON 1 AND OFF 0------------
+
+if [[ $showstat1 == "READY" ]] && [[ $screensaveron -eq 1 ]] && [[ $heatval2 -lt 50 ]] && [[ $heatval3 -lt 50 ]]; then
+if [[ $num11 -eq 30 ]]; then           # <--------------- TIMER SCREEN SAVER -----DEFAULT 30--------
+#echo "\TURN SCREEN OFF"
+mess0='7'
+num11='30'                             # <--------------- TIMER SCREEN SAVER ------DEFAULT 30-------
+num11=$[$num11+1]
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+fi
+if [[ $num11 -lt 30 ]]; then           # <--------------- TIMER SCREEN SAVER ADD 1-DEFAULT 30-------
+#echo "\TURN SCREEN ON READY"
+mess0='4'
+num11=$[$num11+1]
+mess1=$showstat1
+mess2=$showstat4'%'
+mess3='E'$showstat2'C'
+mess4='B'$showstat3'C'
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 1
+fi
+else
+# NORMAL DISPLAY
+#echo "\SHOW SCREEN"
+mess0='4'
+num11='0'
+mess1=$showstat1
+mess2=$showstat4'%'
+mess3='E'$showstat2'C'
+mess4='B'$showstat3'C'
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 1
+fi
+
+##############################################
+## SCREENSAVER IS OFF
+##############################################
+if [[ $screensaveron -eq 0 ]]; then
+#echo "\SCREENSAVER IS OFF"
+mess0='4'
+num11=$[$num11+1]
+mess1=$showstat1
+mess2=$showstat4'%'
+mess3='E'$showstat2'C'
+mess4='B'$showstat3'C'
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 1
+fi
+
+#############
+# HOT ALARM #
+#############################################################
+# DURING ANY TIME IF HEAT GOES UP OVER VALUE DISPLAY ALARM
+#############################################################
+if [[ $heatval2 -gt $alarmE1 ]] || [[ $heatval3 -gt $alarmE3 ]]; then
+#echo "\SHOW SCREEN ALARM"
+mess0='5'
+num11='0'
+mess1='ALARM_HI'
+mess2=$showstat4'%'
+mess3='E'$showstat2'C'
+mess4='B'$showstat3'C'
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 1
+fi
+
+##############
+# COLD ALARM #
+#############################################################
+# DURING PRINTING TIME IF HEAT GOES DOWN OVER VALUE DISPLAY ALARM
+#############################################################
+
+if [[ $heatval2 -lt $alarmE2 ]] || [[ $heatval3 -lt $alarmE4 ]]; then
+if [[ $showstat1 == "PRINTING" ]]; then
+#echo "\SHOW SCREEN ALARM"
+mess0='5'
+num11='0'
+mess1='ALARM_LO'
+mess2=$showstat4'%'
+mess3='E'$showstat2'C'
+mess4='B'$showstat3'C'
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 1
+fi
+fi
+
+######################################
+# COLLECT EXTRA INFO DATA
+#####################################
+
+# OCTOPRINT CONNECTION STRING WITH CURL
+CURL_OUT_RAW3=$(/usr/bin/curl --insecure -L --silent --header 'Content-Typplication/json' \
+--header "X-Api-Key: $apikey" http://$OCTOPI_HOST_STRING/api/$JQ_KEY3)
+
+# SHOW DATA IN CONSOLE
+#echo "\$CURL_OUT_RAW3: $CURL_OUT_RAW3"
+
+# FILE NAME BEEN PRINTED
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | /usr/bin/jq -r $JQ_STATUS_PATH11)
+#echo "\FILENAME: $JQ_RESULT2"
+if [[ $JQ_RESULT2 == "null" ]] || [[ $JQ_RESULT2 == "" ]]; then
+showstat5=''
+else
+showstat5=$( echo $JQ_RESULT2)
+fi
+
+# PRINT TIME LEFT IN SECONS
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | /usr/bin/jq -r $JQ_STATUS_PATH14)
+#echo "\TIME LEFT MIN: $JQ_RESULT2"
+if [[ $JQ_RESULT2 == "null" ]] || [[ $JQ_RESULT2 == "" ]]; then
+showstat6='0'
+else
+showstat6=$(($JQ_RESULT2/60))
+fi
+
+# FILAMENT USED IN MM
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | /usr/bin/jq -r $JQ_STATUS_PATH17)
+#echo "Variable X is unset or null"
+if [[ $JQ_RESULT2 == "null" ]] || [[ $JQ_RESULT2 == "" ]]; then
+showstat9='0'
+else
+showstat9=$( printf "%.1f\n" $JQ_RESULT2)
+fi
+
+# GET THE PRINTER PROFILE NAME
+JQ_RESULT3=$( echo $CURL_OUT_RAW3 | /usr/bin/jq -r $JQ_STATUS_PATH16)
+#echo "\PROFILENAME: $JQ_RESULT3"
+if [[ $JQ_RESULT3 == "null" ]] || [[ $JQ_RESULT3 == "" ]]; then
+showstat8='0'
+else
+showstat8=$( echo $JQ_RESULT3)
+fi
+
+###################################################################################
+# EXTRA INFO LOOP AND TIMMER
+# SET HOW OFFEN YOU SEE IT HERE THE HIGHER THE NUMBER THE LESS YOU SEE IT
+###################################################################################
+extrainfoon='1'                 # <--------SWITCH EXTRA INFO ON 1 OR OFF 2--------------
+if [[ $showstat1 == "PRINTING" ]] && [[ $extrainfoon -eq 1 ]]; then
+num10=$[$num10+1]
+  if [[ $num10 -eq 60 ]]; then  #  <---------------------DEFAULT 60---------------------
+
+# RESET THE COUNTER
+num10='0'
+
+# START SENDING INFO TO SCREED
+# Extra Info 0 START MESSAGE
+mess0='1'
+mess1='***INCOMMING***'
+mess2='******DATA*****'
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 2
+# Extra Info 1 FILE PRINTED NAME
+mess0='9'
+mess1='FILE_NAME'
+mess2=$showstat5
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+#sleep 2
+# Extra Info 2 DATE AND TIME
+# GET THE DATE AND TIME
+num2=$(date +%Y-%m-%d)
+num3=$(date +%H:%M:%S)
+mess0='1'
+mess1=$num2
+mess2=$num3
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 2
+# Extra Info 3 IP ADDRESS
+mess0='1'
+mess1='IP_ADDRESS'
+mess2=$num4
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 2
+# Extra Info 4 ESTIMATED TIME TO FINISH
+mess0='1'
+mess1='TIME_LEFT_MIN'
+mess2=$showstat6
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 2
+# Extra Info 5 PROFILE NAME
+mess0='9'
+mess1='PROFILE_NAME'
+mess2=$showstat8
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+#sleep 1
+# Extra Info 5 FILAMENT USED IN MM
+mess0='1'
+mess1='FILAMENT_USED_MM'
+mess2=$showstat9
+# SEND DATA TO THE SCREEN SCRIPT
+/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+sleep 1
+fi
+fi
+
+###########################################
+# OUT PUT TO A PC SCREEN OR TERMINAL
+###########################################
+clear
+echo '|====================================='
+echo "| OctoKitty_LCD Ver1.3                "
+echo "| IP_ADDRESS $num4                    "
+echo "| $(date +%Y-%m-%d)  $(date +%H:%M:%S)"
+echo '|====================================='
+echo "|$showstat1 ................. $showstat4 %  "
+echo '|                                     '
+echo "|E $showstat2 C ............... B $showstat3 C  "
+echo '|====================================='
+echo "|TIME_TO_END_MIN: $showstat6          "
+echo '|-------------------------------------'
+echo "|FILE: $showstat5                     "
+echo '|-------------------------------------'
+echo "|PROFILE: $showstat8                  "
+echo '|-------------------------------------'
+echo "|FILAMENT_USED_MM: $showstat9          "
+echo '|====================================='
+echo ''
+
+############################################
+# FINISH ENDLESS LOOP
+# SET LOOP SLEEP REFRESH RATE 1 = 1 second
+############################################
+sleep 2 #  <----------------------------------------------DEFAULT 2---------------
+
+#############################################
+## CLEAN THE LCD
+#mess0='3'
+#mess1=''
+#mess2=""
+## SEND DATA TO THE SCREEN SCRIPT
+#/usr/bin/python /home/pi/octolcd16x2.py $mess0 $mess1 $mess2 $mess3 $mess4
+
+done
+
+#########################
+# FINISHED END OF FILE
+#########################

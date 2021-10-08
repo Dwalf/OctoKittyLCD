@@ -1,0 +1,869 @@
+#!/bin/bash
+#############################################################
+# PUT TOGETHER BY DWALF - 11SEP2021
+# WARNING NOTE: THIS IS NOT A PLUGIN - DO NOT USE IT AS A OCTOPRINT PLUGIN
+#
+# NAME OCTOKITTY_SCREEN
+# VERSION 1.0 - NOT FOR COMMERCAIL USE - PERSONAL USE ONLY
+# WITHOUT WARRNETY OR SUPPORT
+# USE AT OWN RISK AND LIABILITY
+#
+# THANKS EVERYONE - ONLY ONE HOTEND tool0 SUPPORTED
+# WORKS WITH OCTOPRINT 1.6 and PY3
+# TIP ME AT https://www.thingiverse.com/dwalf/designs
+#
+# REQUIRED ALL FILES IN '/home/pi' FOLDER
+#
+#############################################################
+
+##########################################################################################################################
+
+#####################################
+# SWITCH SERVERS ON OR OFF TO DISPLAY             <-------------1 = ON and 0 = OFF-----------------------------------
+#####################################
+
+apikey1on='1'
+apikey2on='0'
+apikey3on='0'
+
+#####################################
+# OCTOPRINT API KEY
+# ENTER YOUR KEY FROM OCTOPRINT HERE
+#####################################
+
+
+apikey1='XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'  # <-----------------------------ENTER SERVER1 API HERE-----------------
+apikey2='XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'  # <-----------------------------ENTER SERVER2 API HERE-----------------
+apikey3='XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'  # <-----------------------------ENTER SERVER3 API HERE-----------------
+
+##########################################################################################################################
+
+##################################
+# OCTOPRINT LOCAL IP OR HOST NAME
+##################################
+
+OCTOPI_HOST_STRING1='127.0.0.1'      #<----------------------------CHANGE HERE THE OTHER SERVERS IP ---------------
+OCTOPI_HOST_STRING2='127.0.0.1'      #<----------------------------CHANGE HERE THE OTHER SERVERS IP ---------------
+OCTOPI_HOST_STRING3='127.0.0.1'      #<----------------------------CHANGE HERE THE OTHER SERVERS IP ---------------
+
+##########################################################################################################################
+
+######################################
+# VARS USED TO DISPLAY INFO AND LOGIC
+######################################
+
+mess1='0' # SCREEN DATA
+mess2='0' # SCREEN DATA
+mess3='0' # SCREEN DATA
+mess4='0' # SCREEN DATA
+mess5='0' # PRINTER NOT CONNECTED
+mess6='0' # API ERROR
+
+num1='0'  # LOOP COUNTER TO WAIT FOR VALID IP
+num2='0'  # DATE STRING
+num3='0'  # TIME STRING
+num4='0'  # IP STRING
+num10='0' # LOOP COUNTER BEFORE EXTRA INFO SCREEN
+num11='0' # LOOP COUNTER BEFORE SCREEN SAVER
+
+##########################################################################################################################
+
+#################################
+# BOOTUP MESSAGE AND DATE MEOW!
+#################################
+
+clear
+echo '-------------------------'
+echo '     OCTOKITTY_SCREEN    '
+echo '       Version_1.0       '
+echo '-------------------------'
+sleep 2
+clear
+echo '-------------------------'
+echo '         O       O       '
+echo '        ___________      '
+echo '-------------------------'
+sleep 2
+clear
+echo '-------------------------'
+echo '         O       -       '
+echo '        ___________      '
+echo '-------------------------'
+sleep 2
+clear
+
+##########################################################################################################################
+
+################################
+# GET THE IP ADDRESS WHEN VALID
+################################
+
+while [ "$(hostname -I)" = "" ]; do
+echo '-------------------------'
+echo ' LOCAL IP ADDRESS        '
+echo ' ERROR                   '
+echo '-------------------------'
+sleep 2
+done
+clear
+
+##########################################################################################################################
+
+###########################################
+# JSON PAYLOAD STRINGS
+# THIS IS THE JSON AREA WE FIND DATA
+# https://docs.octoprint.org/en/master/api/printerprofiles.html
+###########################################
+
+JQ_STATUS_PATH0='.error'
+JQ_STATUS_PATH1='.state.flags.printing'
+JQ_STATUS_PATH2='.state.flags.operational'
+JQ_STATUS_PATH3='.state.flags.paused'
+JQ_STATUS_PATH4='.state.flags.closedOrError'
+JQ_STATUS_PATH5='.state.flags.cancelling'
+JQ_STATUS_PATH6='.state.flags.pausing'
+JQ_STATUS_PATH7='.state.flags.sdready'
+JQ_STATUS_PATH8='.state.flags.error'
+JQ_STATUS_PATH9='.temperature.tool0.actual'   #Hotend Temp 1
+JQ_STATUS_PATH10='.temperature.bed.actual'    #Bed Temp 1
+JQ_STATUS_PATH16='.state.flags.finishing'     #Finishing
+
+JQ_STATUS_PATH11='.job.file.name'             #Printing File Name
+JQ_STATUS_PATH12='.progress.completion'       #Printing Percent %
+JQ_STATUS_PATH13='.progress.printTime'        #Printing Time Spent Seconds
+JQ_STATUS_PATH14='.progress.printTimeLeft'    #Printing Time Left Seconds
+JQ_STATUS_PATH15='.state'                     #Printing Status
+JQ_STATUS_PATH16='.profiles._default.name'    #Profile name
+JQ_STATUS_PATH17='.job.filament.tool0.length' #Filament Lenth Printed
+
+##########################################################################################################################
+
+###########################################
+# API CONNECTION STRING
+# THIS IS THE URL GET DATA
+###########################################
+
+JQ_KEY1='printer'
+JQ_KEY2='job'
+JQ_KEY3='printerprofiles'
+
+##########################################################################################################################
+
+######################
+# START ENDLESS LOOP
+######################
+while :
+do
+
+###########################################
+# PRINTER DATA VAR
+###########################################
+
+showstat11=''      # Printing Status
+showstat12=''      # Printer HotEnd Degrees
+showstat13=''      # Printer HotBed Degrees
+showstat14=''      # Percent Printed %
+showstat15=''      # Filename Printing
+showstat16=''      # Estate Time Remaining
+showstat17=''      # Job Status Printing ERRORS
+showstat18=''      # Profile Name
+showstat19=''      # Filament Used mm
+
+##########################################################################################################################
+##########################################################################################################################
+# INSTANCE SERVER 1 START
+##########################################################################################################################
+##########################################################################################################################
+
+if [[ $apikey1on -eq 1 ]]; then
+showstat11='READY' # Printing Status
+
+#################################################
+# OCTOPRINT CONNECTION STRING WITH CURL SERVER 1
+#################################################
+
+CURL_OUT_RAW1=$(curl --insecure -L --silent --header 'Content-Typplication/json' \
+--header "X-Api-Key: $apikey1" http://$OCTOPI_HOST_STRING1/api/$JQ_KEY1)
+
+CURL_OUT_RAW2=$(curl --insecure -L --silent --header 'Content-Typplication/json' \
+--header "X-Api-Key: $apikey1" http://$OCTOPI_HOST_STRING1/api/$JQ_KEY2)
+
+CURL_OUT_RAW3=$(curl --insecure -L --silent --header 'Content-Typplication/json' \
+--header "X-Api-Key: $apikey1" http://$OCTOPI_HOST_STRING1/api/$JQ_KEY3)
+
+#########################################
+# SHOWS IF THE PRINTER IS CONNECTED
+#########################################
+
+STATUS_NOT_OPERATIONAL='Printer is not operational'
+if [ "$CURL_OUT_RAW1" == "$STATUS_NOT_OPERATIONAL" ]; then
+mess5='1'
+else
+mess5='0'
+fi
+
+######################################
+# CHECK THE API KEY 1 IS WORKING
+######################################
+
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH0)
+if [ "$JQ_RESULT1" == "You don't have the permission to access the requested resource. It is either read-protected or not readable by the server." ]; then
+mess6='1'
+else
+mess6='0'
+fi
+
+###########################################
+# COLLECT THE DATA TO SCREEN
+###########################################
+
+# OPERATIONAL
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH2)
+if [[ "$JQ_RESULT1" == "false" ]]; then
+#echo "\PRINTING: $JQ_RESULT1"
+showstat11='WAIT4SERVER'
+fi
+
+# FINISHING
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH16)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\PRINTING: $JQ_RESULT1"
+showstat11='FINISHING'
+fi
+
+# PRINTING
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH1)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\PRINTING: $JQ_RESULT1"
+showstat11='PRINTING'
+fi
+
+# PAUSED
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH3)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\PAUSED: $JQ_RESULT1"
+showstat11='PAUSED'
+fi
+
+# PAUSING
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH6)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\PAUSING: $JQ_RESULT1"
+showstat11='PAUSING'
+fi
+
+# CANCELED
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH5)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\CANCLING: $JQ_RESULT1"
+showstat11='CANCEL'
+fi
+
+# ERROR
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH8)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\ERROR: $JQ_RESULT1"
+showstat11='ERROR'
+fi
+
+# HOTEND
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH9)
+#echo "\HOTEND: $JQ_RESULT1"
+if [ $JQ_RESULT1 == "null" ]; then
+showstat12='0'
+else
+showstat12=$( printf "%.1f\n" $JQ_RESULT1)
+fi
+if [[ $showstat12 == "" ]]; then
+showstat12='0'
+fi
+
+# HOTBED
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH10)
+#echo "\HOTBED: $JQ_RESULT1"
+if [ $JQ_RESULT1 == "null" ]; then
+showstat13='0'
+else
+showstat13=$( printf "%.1f\n" $JQ_RESULT1)
+fi
+if [[ $showstat13 == "" ]]; then
+showstat13='0'
+fi
+
+# PERCENT PRINTED
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | jq -r $JQ_STATUS_PATH12)
+#echo "\PERCENT: $JQ_RESULT2"
+if [ $JQ_RESULT2 == "null" ]; then
+showstat14='0'
+else
+showstat14=$( printf "%.1f\n" $JQ_RESULT2)
+fi
+if [[ $showstat14 == "" ]]; then
+showstat14='0'
+fi
+
+# PRINTING OFFLINE STATUS ERRORS
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | jq -r $JQ_STATUS_PATH15)
+#echo "\JOB PRINTING STATUS2: $JQ_RESULT2"
+showstat17=$JQ_RESULT2
+if [[ $showstat17 == "Offline" ]]; then
+showstat11='OFFLINE'
+fi
+if [[ $showstat17 == "Offline after error" ]]; then
+showstat11='ERRORS'
+fi
+
+# SHOW IF CONNECTED TO PRINTER
+if [[ $mess5 -eq 1 ]]; then
+showstat11='CONNECT PRINTER'
+fi
+
+# SHOW IF API KEY ERRORS
+if [[ $mess6 -eq 1 ]]; then
+showstat11='API_KEY_ERROR'
+fi
+
+# FILE NAME BEEN PRINTED
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | jq -r $JQ_STATUS_PATH11)
+#echo "\FILENAME: $JQ_RESULT2"
+if [ $JQ_RESULT2 == "null" ]; then
+showstat15=''
+else
+showstat15=$( echo $JQ_RESULT2)
+fi
+if [[ $showstat15 == "" ]]; then
+showstat15=''
+fi
+
+# PRINT TIME LEFT IN SECONDS
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | jq -r $JQ_STATUS_PATH14)
+#echo "\TIME LEFT MIN: $JQ_RESULT2"
+if [ $JQ_RESULT2 == "null" ]; then
+showstat16='0'
+else
+showstat16=$(($JQ_RESULT2/60))
+fi
+if [[ $showstat16 == "" ]]; then
+showstat16='0'
+fi
+
+# FILAMENT USED IN MM
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | jq -r $JQ_STATUS_PATH17)
+if [ $JQ_RESULT2 == "null" ]; then
+showstat19='0'
+else
+showstat19=$( printf "%.1f\n" $JQ_RESULT2)
+fi
+if [[ $showstat19 == "" ]]; then
+showstat19='0'
+fi
+
+# GET THE PRINTER PROFILE NAME
+JQ_RESULT3=$( echo $CURL_OUT_RAW3 | jq -r $JQ_STATUS_PATH16)
+#echo "\PROFILENAME: $JQ_RESULT3"
+if [ $JQ_RESULT3 == "null" ]; then
+showstat18=''
+else
+showstat18=$( echo $JQ_RESULT3)
+fi
+if [[ $showstat18 == "" ]]; then
+showstat18=''
+fi
+
+##############################################
+## DISPLAY OCTO DATA TO SCREEN SERVER 1
+##############################################
+
+echo '|====================================='
+echo "| SERVER1: $OCTOPI_HOST_STRING1       "
+echo '|====================================='
+echo "|$showstat11 ................. $showstat14 %"
+echo '|                                     '
+echo "|E $showstat12 C ............... B $showstat13 C"
+echo '|====================================='
+echo "|TIME_TO_END_MIN: $showstat16         "
+echo '|-------------------------------------'
+echo "|FILE:$showstat15                     "
+echo '|-------------------------------------'
+echo "|PROFILE:$showstat18                  "
+echo '|-------------------------------------'
+echo "|FILAMENT_USED_MM:$showstat19         "
+echo '|====================================='
+echo ''
+fi
+
+##########################################################################################################################
+##########################################################################################################################
+# INSTANCE SERVER 1 END
+##########################################################################################################################
+##########################################################################################################################
+
+##########################################################################################################################
+##########################################################################################################################
+# INSTANCE SERVER 2 START
+##########################################################################################################################
+##########################################################################################################################
+
+if [[ $apikey2on -eq 1 ]]; then
+showstat11='READY' # Printing Status
+
+#################################################
+# OCTOPRINT CONNECTION STRING WITH CURL SERVER 2
+#################################################
+
+CURL_OUT_RAW1=$(curl --insecure -L --silent --header 'Content-Typplication/json' \
+--header "X-Api-Key: $apikey2" http://$OCTOPI_HOST_STRING2/api/$JQ_KEY1)
+
+CURL_OUT_RAW2=$(curl --insecure -L --silent --header 'Content-Typplication/json' \
+--header "X-Api-Key: $apikey2" http://$OCTOPI_HOST_STRING2/api/$JQ_KEY2)
+
+CURL_OUT_RAW3=$(curl --insecure -L --silent --header 'Content-Typplication/json' \
+--header "X-Api-Key: $apikey2" http://$OCTOPI_HOST_STRING2/api/$JQ_KEY3)
+
+#########################################
+# SHOWS IF THE PRINTER IS CONNECTED
+#########################################
+
+STATUS_NOT_OPERATIONAL='Printer is not operational'
+if [ "$CURL_OUT_RAW1" == "$STATUS_NOT_OPERATIONAL" ]; then
+mess5='1'
+else
+mess5='0'
+fi
+
+######################################
+# CHECK THE API KEY 2 IS WORKING
+######################################
+
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH0)
+if [ "$JQ_RESULT1" == "You don't have the permission to access the requested resource. It is either read-protected or not readable by the server." ]; then
+mess6='1'
+else
+mess6='0'
+fi
+
+###########################################
+# COLLECT THE DATA TO SCREEN
+###########################################
+
+# OPERATIONAL
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH2)
+if [[ "$JQ_RESULT1" == "false" ]]; then
+#echo "\PRINTING: $JQ_RESULT1"
+showstat11='WAIT4SERVER'
+fi
+
+# FINISHING
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH16)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\PRINTING: $JQ_RESULT1"
+showstat11='FINISHING'
+fi
+
+# PRINTING
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH1)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\PRINTING: $JQ_RESULT1"
+showstat11='PRINTING'
+fi
+
+# PAUSED
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH3)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\PAUSED: $JQ_RESULT1"
+showstat11='PAUSED'
+fi
+
+# PAUSING
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH6)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\PAUSING: $JQ_RESULT1"
+showstat11='PAUSING'
+fi
+
+# CANCELED
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH5)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\CANCLING: $JQ_RESULT1"
+showstat11='CANCEL'
+fi
+
+# ERROR
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH8)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\ERROR: $JQ_RESULT1"
+showstat11='ERROR'
+fi
+
+# HOTEND
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH9)
+#echo "\HOTEND: $JQ_RESULT1"
+if [ $JQ_RESULT1 == "null" ]; then
+showstat12='0'
+else
+showstat12=$( printf "%.1f\n" $JQ_RESULT1)
+fi
+if [[ $showstat12 == "" ]]; then
+showstat12='0'
+fi
+
+# HOTBED
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH10)
+#echo "\HOTBED: $JQ_RESULT1"
+if [ $JQ_RESULT1 == "null" ]; then
+showstat13='0'
+else
+showstat13=$( printf "%.1f\n" $JQ_RESULT1)
+fi
+if [[ $showstat13 == "" ]]; then
+showstat13='0'
+fi
+
+# PERCENT PRINTED
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | jq -r $JQ_STATUS_PATH12)
+#echo "\PERCENT: $JQ_RESULT2"
+if [ $JQ_RESULT2 == "null" ]; then
+showstat14='0'
+else
+showstat14=$( printf "%.1f\n" $JQ_RESULT2)
+fi
+if [[ $showstat14 == "" ]]; then
+showstat14='0'
+fi
+
+# PRINTING OFFLINE STATUS ERRORS
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | jq -r $JQ_STATUS_PATH15)
+#echo "\JOB PRINTING STATUS2: $JQ_RESULT2"
+showstat17=$JQ_RESULT2
+if [[ $showstat17 == "Offline" ]]; then
+showstat11='OFFLINE'
+fi
+if [[ $showstat17 == "Offline after error" ]]; then
+showstat11='ERRORS'
+fi
+
+# SHOW IF CONNECTED TO PRINTER
+if [[ $mess5 -eq 1 ]]; then
+showstat11='CONNECT PRINTER'
+fi
+
+# SHOW IF API KEY ERRORS
+if [[ $mess6 -eq 1 ]]; then
+showstat11='API_KEY_ERROR'
+fi
+
+# FILE NAME BEEN PRINTED
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | jq -r $JQ_STATUS_PATH11)
+#echo "\FILENAME: $JQ_RESULT2"
+if [ $JQ_RESULT2 == "null" ]; then
+showstat15=''
+else
+showstat15=$( echo $JQ_RESULT2)
+fi
+if [[ $showstat15 == "" ]]; then
+showstat15=''
+fi
+
+# PRINT TIME LEFT IN SECONDS
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | jq -r $JQ_STATUS_PATH14)
+#echo "\TIME LEFT MIN: $JQ_RESULT2"
+if [ $JQ_RESULT2 == "null" ]; then
+showstat16='0'
+else
+showstat16=$(($JQ_RESULT2/60))
+fi
+if [[ $showstat16 == "" ]]; then
+showstat16='0'
+fi
+
+# FILAMENT USED IN MM
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | jq -r $JQ_STATUS_PATH17)
+if [ $JQ_RESULT2 == "null" ]; then
+showstat19='0'
+else
+showstat19=$( printf "%.1f\n" $JQ_RESULT2)
+fi
+if [[ $showstat19 == "" ]]; then
+showstat19='0'
+fi
+
+# GET THE PRINTER PROFILE NAME
+JQ_RESULT3=$( echo $CURL_OUT_RAW3 | jq -r $JQ_STATUS_PATH16)
+#echo "\PROFILENAME: $JQ_RESULT3"
+if [ $JQ_RESULT3 == "null" ]; then
+showstat18=''
+else
+showstat18=$( echo $JQ_RESULT3)
+fi
+if [[ $showstat18 == "" ]]; then
+showstat18=''
+fi
+
+##############################################
+## DISPLAY OCTO DATA TO SCREEN SERVER 2
+##############################################
+
+echo '|====================================='
+echo "| SERVER2: $OCTOPI_HOST_STRING1       "
+echo '|====================================='
+echo "|$showstat11 ................. $showstat14 %"
+echo '|                                     '
+echo "|E $showstat12 C ............... B $showstat13 C"
+echo '|====================================='
+echo "|TIME_TO_END_MIN: $showstat16         "
+echo '|-------------------------------------'
+echo "|FILE:$showstat15                     "
+echo '|-------------------------------------'
+echo "|PROFILE:$showstat18                  "
+echo '|-------------------------------------'
+echo "|FILAMENT_USED_MM:$showstat19         "
+echo '|====================================='
+echo ''
+fi
+
+##########################################################################################################################
+##########################################################################################################################
+# INSTANCE SERVER 2 END
+##########################################################################################################################
+##########################################################################################################################
+
+##########################################################################################################################
+##########################################################################################################################
+# INSTANCE SERVER 3 START
+##########################################################################################################################
+##########################################################################################################################
+
+if [[ $apikey3on -eq 1 ]]; then
+showstat11='READY' # Printing Status
+
+#################################################
+# OCTOPRINT CONNECTION STRING WITH CURL SERVER 2
+#################################################
+
+CURL_OUT_RAW1=$(curl --insecure -L --silent --header 'Content-Typplication/json' \
+--header "X-Api-Key: $apikey3" http://$OCTOPI_HOST_STRING3/api/$JQ_KEY1)
+
+CURL_OUT_RAW2=$(curl --insecure -L --silent --header 'Content-Typplication/json' \
+--header "X-Api-Key: $apikey3" http://$OCTOPI_HOST_STRING3/api/$JQ_KEY2)
+
+CURL_OUT_RAW3=$(curl --insecure -L --silent --header 'Content-Typplication/json' \
+--header "X-Api-Key: $apikey3" http://$OCTOPI_HOST_STRING3/api/$JQ_KEY3)
+
+#########################################
+# SHOWS IF THE PRINTER IS CONNECTED
+#########################################
+
+STATUS_NOT_OPERATIONAL='Printer is not operational'
+if [ "$CURL_OUT_RAW1" == "$STATUS_NOT_OPERATIONAL" ]; then
+mess5='1'
+else
+mess5='0'
+fi
+
+######################################
+# CHECK THE API KEY 3 IS WORKING
+######################################
+
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH0)
+if [ "$JQ_RESULT1" == "You don't have the permission to access the requested resource. It is either read-protected or not readable by the server." ]; then
+mess6='1'
+else
+mess6='0'
+fi
+
+###########################################
+# COLLECT THE DATA TO SCREEN
+###########################################
+
+# OPERATIONAL
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH2)
+if [[ "$JQ_RESULT1" == "false" ]]; then
+#echo "\PRINTING: $JQ_RESULT1"
+showstat11='WAIT4SERVER'
+fi
+
+# FINISHING
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH16)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\PRINTING: $JQ_RESULT1"
+showstat11='FINISHING'
+fi
+
+# PRINTING
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH1)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\PRINTING: $JQ_RESULT1"
+showstat11='PRINTING'
+fi
+
+# PAUSED
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH3)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\PAUSED: $JQ_RESULT1"
+showstat11='PAUSED'
+fi
+
+# PAUSING
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH6)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\PAUSING: $JQ_RESULT1"
+showstat11='PAUSING'
+fi
+
+# CANCELED
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH5)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\CANCLING: $JQ_RESULT1"
+showstat11='CANCEL'
+fi
+
+# ERROR
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH8)
+if [[ "$JQ_RESULT1" == "true" ]]; then
+#echo "\ERROR: $JQ_RESULT1"
+showstat11='ERROR'
+fi
+
+# HOTEND
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH9)
+#echo "\HOTEND: $JQ_RESULT1"
+if [ $JQ_RESULT1 == "null" ]; then
+showstat12='0'
+else
+showstat12=$( printf "%.1f\n" $JQ_RESULT1)
+fi
+if [[ $showstat12 == "" ]]; then
+showstat12='0'
+fi
+
+# HOTBED
+JQ_RESULT1=$( echo $CURL_OUT_RAW1 | jq -r $JQ_STATUS_PATH10)
+#echo "\HOTBED: $JQ_RESULT1"
+if [ $JQ_RESULT1 == "null" ]; then
+showstat13='0'
+else
+showstat13=$( printf "%.1f\n" $JQ_RESULT1)
+fi
+if [[ $showstat13 == "" ]]; then
+showstat13='0'
+fi
+
+# PERCENT PRINTED
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | jq -r $JQ_STATUS_PATH12)
+#echo "\PERCENT: $JQ_RESULT2"
+if [ $JQ_RESULT2 == "null" ]; then
+showstat14='0'
+else
+showstat14=$( printf "%.1f\n" $JQ_RESULT2)
+fi
+if [[ $showstat14 == "" ]]; then
+showstat14='0'
+fi
+
+# PRINTING OFFLINE STATUS ERRORS
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | jq -r $JQ_STATUS_PATH15)
+#echo "\JOB PRINTING STATUS2: $JQ_RESULT2"
+showstat17=$JQ_RESULT2
+if [[ $showstat17 == "Offline" ]]; then
+showstat11='OFFLINE'
+fi
+if [[ $showstat17 == "Offline after error" ]]; then
+showstat11='ERRORS'
+fi
+
+# SHOW IF CONNECTED TO PRINTER
+if [[ $mess5 -eq 1 ]]; then
+showstat11='CONNECT PRINTER'
+fi
+
+# SHOW IF API KEY ERRORS
+if [[ $mess6 -eq 1 ]]; then
+showstat11='API_KEY_ERROR'
+fi
+
+# FILE NAME BEEN PRINTED
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | jq -r $JQ_STATUS_PATH11)
+#echo "\FILENAME: $JQ_RESULT2"
+if [ $JQ_RESULT2 == "null" ]; then
+showstat15=''
+else
+showstat15=$( echo $JQ_RESULT2)
+fi
+if [[ $showstat15 == "" ]]; then
+showstat15=''
+fi
+
+# PRINT TIME LEFT IN SECONDS
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | jq -r $JQ_STATUS_PATH14)
+#echo "\TIME LEFT MIN: $JQ_RESULT2"
+if [ $JQ_RESULT2 == "null" ]; then
+showstat16='0'
+else
+showstat16=$(($JQ_RESULT2/60))
+fi
+if [[ $showstat16 == "" ]]; then
+showstat16='0'
+fi
+
+# FILAMENT USED IN MM
+JQ_RESULT2=$( echo $CURL_OUT_RAW2 | jq -r $JQ_STATUS_PATH17)
+if [ $JQ_RESULT2 == "null" ]; then
+showstat19='0'
+else
+showstat19=$( printf "%.1f\n" $JQ_RESULT2)
+fi
+if [[ $showstat19 == "" ]]; then
+showstat19='0'
+fi
+
+# GET THE PRINTER PROFILE NAME
+JQ_RESULT3=$( echo $CURL_OUT_RAW3 | jq -r $JQ_STATUS_PATH16)
+#echo "\PROFILENAME: $JQ_RESULT3"
+if [ $JQ_RESULT3 == "null" ]; then
+showstat18=''
+else
+showstat18=$( echo $JQ_RESULT3)
+fi
+if [[ $showstat18 == "" ]]; then
+showstat18=''
+fi
+
+##############################################
+## DISPLAY OCTO DATA TO SCREEN SERVER 3
+##############################################
+
+echo '|====================================='
+echo "| SERVER3: $OCTOPI_HOST_STRING1       "
+echo '|====================================='
+echo "|$showstat11 ................. $showstat14 %"
+echo '|                                     '
+echo "|E $showstat12 C ............... B $showstat13 C"
+echo '|====================================='
+echo "|TIME_TO_END_MIN: $showstat16         "
+echo '|-------------------------------------'
+echo "|FILE:$showstat15                     "
+echo '|-------------------------------------'
+echo "|PROFILE:$showstat18                  "
+echo '|-------------------------------------'
+echo "|FILAMENT_USED_MM:$showstat19         "
+echo '|====================================='
+echo ''
+fi
+
+##########################################################################################################################
+##########################################################################################################################
+# INSTANCE SERVER 3 END
+##########################################################################################################################
+##########################################################################################################################
+
+############################################
+# FINISH ENDLESS LOOP
+# SET LOOP SLEEP REFRESH RATE 1 = 1 second
+############################################
+sleep 5 #  <----------------------------------------------DEFAULT 5---------------
+clear
+done
+
+#########################
+# FINISHED END OF FILE
+#########################
